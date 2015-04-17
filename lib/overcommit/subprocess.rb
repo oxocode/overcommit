@@ -37,7 +37,7 @@ module Overcommit
       # arguments (the first element is the command).
       def spawn_detached(args)
         if OS.windows?
-          args.unshift('cmd.exe', '/c')
+          args = %w[cmd.exe /c] + [args.join(' ')]
         end
 
         process = ChildProcess.build(*args)
