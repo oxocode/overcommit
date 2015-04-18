@@ -16,9 +16,7 @@ module Overcommit
       # Spawns a new process using the given array of arguments (the first
       # element is the command).
       def spawn(args)
-        if OS.windows?
-          args.unshift('cmd.exe', '/c')
-        end
+        args = win32_prepare_args(args) if OS.windows?
 
         process = ChildProcess.build(*args)
 
@@ -36,9 +34,7 @@ module Overcommit
       # Spawns a new process in the background using the given array of
       # arguments (the first element is the command).
       def spawn_detached(args)
-        if OS.windows?
-          args = %w[cmd.exe /c] + [args.join(' ')]
-        end
+        args = win32_prepare_args(args) if OS.windows?
 
         process = ChildProcess.build(*args)
         process.detach = true
@@ -49,6 +45,12 @@ module Overcommit
       end
 
       private
+
+      # Necessary to run commands in the cmd.exe context.
+      # Args are joined to properly handle quotes and special characters.
+      def win32_prepare_args(args)
+        %w[cmd.exe /c] + [args.join(' ')]
+      end
 
       # @param process [ChildProcess]
       # @return [Array<IO>]
