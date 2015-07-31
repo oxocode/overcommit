@@ -1,3 +1,4 @@
+require 'overcommit'
 require 'optparse'
 
 module Overcommit
@@ -9,6 +10,8 @@ module Overcommit
       @input     = input
       @log       = logger
       @options   = {}
+
+      Overcommit::Utils.log = logger
     end
 
     def run

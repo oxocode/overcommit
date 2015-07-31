@@ -5,7 +5,7 @@ module Overcommit::Hook::PreCommit
   # @see http://jscs.info/
   class Jscs < Base
     def run
-      result = execute(command + applicable_files)
+      result = execute(command, args: applicable_files)
       return :pass if result.success?
 
       if result.status == 1
@@ -17,7 +17,7 @@ module Overcommit::Hook::PreCommit
       #   path/to/file.js: line 7, col 0, ruleName: Error message
       extract_messages(
         result.stdout.split("\n"),
-        /^(?<file>[^:]+):[^\d]+(?<line>\d+)/,
+        /^(?<file>(?:\w:)?[^:]+):[^\d]+(?<line>\d+)/,
       )
     end
   end

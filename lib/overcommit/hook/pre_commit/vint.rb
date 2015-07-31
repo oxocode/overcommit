@@ -4,7 +4,7 @@ module Overcommit::Hook::PreCommit
   # @see https://github.com/Kuniwak/vint
   class Vint < Base
     def run
-      result = execute(command + applicable_files)
+      result = execute(command, args: applicable_files)
       return :pass if result.success?
 
       return [:fail, result.stderr] unless result.stderr.empty?
@@ -13,7 +13,7 @@ module Overcommit::Hook::PreCommit
       #   path/to/file.vim:1:1: Error message
       extract_messages(
         result.stdout.split("\n"),
-        /^(?<file>[^:]+):(?<line>\d+)/
+        /^(?<file>(?:\w:)?[^:]+):(?<line>\d+)/
       )
     end
   end

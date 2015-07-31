@@ -4,7 +4,7 @@ module Overcommit::Hook::PreCommit
   # @see https://pypi.python.org/pypi/pep257
   class Pep257 < Base
     def run
-      result = execute(command + applicable_files)
+      result = execute(command, args: applicable_files)
       return :pass if result.success?
 
       output = result.stderr.chomp
@@ -14,7 +14,7 @@ module Overcommit::Hook::PreCommit
       #           D102: Docstring missing
       extract_messages(
         output.gsub(/:\s+/, ': ').split("\n"),
-        /^(?<file>[^:]+):(?<line>\d+)/
+        /^(?<file>(?:\w:)?[^:]+):(?<line>\d+)/
       )
     end
   end

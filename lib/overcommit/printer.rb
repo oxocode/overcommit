@@ -17,7 +17,7 @@ module Overcommit
     end
 
     def nothing_to_run
-      log.success "✓ No applicable #{hook_script_name} hooks to run"
+      log.debug "✓ No applicable #{hook_script_name} hooks to run"
     end
 
     # Executed at the start of an individual hook run.
@@ -81,7 +81,7 @@ module Overcommit
       log.partial hook_name
     end
 
-    def print_result(hook, status, output) # rubocop:disable CyclomaticComplexity, MethodLength
+    def print_result(hook, status, output)
       case status
       when :pass
         log.success 'OK' unless hook.quiet?

@@ -8,12 +8,12 @@ module Overcommit::Hook::PreCommit
     end
 
     def run
-      result = execute(command + applicable_files)
+      result = execute(command, args: applicable_files)
       return :pass if result.success?
 
       extract_messages(
         result.stdout.split("\n"),
-        /^(?<file>[^:]+):(?<line>\d+):[^ ]+ (?<type>[^ ]+)/,
+        /^(?<file>(?:\w:)?[^:]+):(?<line>\d+):[^ ]+ (?<type>[^ ]+)/,
         MESSAGE_TYPE_CATEGORIZER,
       )
     end

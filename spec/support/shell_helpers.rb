@@ -7,6 +7,14 @@ module ShellHelpers
     Overcommit::Subprocess.spawn(command)
   end
 
+  def symlink(source, dest)
+    Overcommit::Utils::FileUtils.symlink(source, dest)
+  end
+
+  def touch(file)
+    FileUtils.touch(file)
+  end
+
   # Wait until the specified condition is true or the given timeout has elapsed,
   # whichever comes first.
   #

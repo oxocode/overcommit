@@ -3,10 +3,10 @@ module Overcommit::Hook::PreCommit
   #
   # @see https://pypi.python.org/pypi/pyflakes
   class Pyflakes < Base
-    MESSAGE_REGEX = /^(?<file>[^:]+):(?<line>\d+):/
+    MESSAGE_REGEX = /^(?<file>(?:\w:)?[^:]+):(?<line>\d+):/
 
     def run
-      result = execute(command + applicable_files)
+      result = execute(command, args: applicable_files)
       return :pass if result.success?
 
       errors = get_messages(result.stderr, :error)

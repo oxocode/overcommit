@@ -3,10 +3,10 @@ module Overcommit::Hook::PreCommit
   #
   # @see http://checkstyle.sourceforge.net/
   class JavaCheckstyle < Base
-    MESSAGE_REGEX = /^(?<file>[^:]+):(?<line>\d+)/
+    MESSAGE_REGEX = /^(?<file>(?:\w:)?[^:]+):(?<line>\d+)/
 
     def run
-      result = execute(command + applicable_files)
+      result = execute(command, args: applicable_files)
       output = result.stdout.chomp
       return :pass if result.success?
 

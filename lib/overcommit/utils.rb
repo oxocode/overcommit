@@ -1,6 +1,8 @@
 require 'pathname'
 require 'overcommit/os'
 require 'overcommit/subprocess'
+require 'overcommit/command_splitter'
+require 'tempfile'
 
 module Overcommit
   # Utility functions for general use.
@@ -24,6 +26,9 @@ module Overcommit
     end
 
     class << self
+      # @return [Overcommit::Logger] logger with which to send debug output
+      attr_accessor :log
+
       def script_path(script)
         File.join(Overcommit::HOME, 'libexec', script)
       end
@@ -73,6 +78,16 @@ module Overcommit
           end
       end
 
+      # Remove ANSI escape sequences from a string.
+      #
+      # This is useful for stripping colorized output from external tools.
+      #
+      # @param text [String]
+      # @return [String]
+      def strip_color_codes(text)
+        text.gsub(/\e\[(\d+)(;\d+)*m/, '')
+      end
+
       # Shamelessly stolen from:
       # stackoverflow.com/questions/1509915/converting-camel-case-to-underscore-case-in-ruby
       def snake_case(str)
@@ -114,8 +129,9 @@ module Overcommit
         exts  = ENV['PATHEXT'] ? ENV['PATHEXT'].split(';') : ['']
         paths.each do |path|
           exts.each do |ext|
-            exe = File.join(path, "#{cmd}#{ext}")
-            return true if File.executable?(exe)
+            cmd_with_ext = cmd.upcase.end_with?(ext.upcase) ? cmd : "#{cmd}#{ext}"
+            full_path = File.join(path, cmd_with_ext)
+            return true if File.executable?(full_path)
           end
         end
         false
@@ -142,15 +158,40 @@ module Overcommit
       # This is intended to provide a centralized place to perform any checks or
       # filtering of the command before executing it.
       #
-      # @param args [Array<String>]
+      # The `args` option provides a convenient way of splitting up long
+      # argument lists which would otherwise exceed the maximum command line
+      # length of the OS. It will break up the list into chunks and run the
+      # command with the same prefix `initial_args`, finally combining the
+      # output together at the end.
+      #
+      # This requires that the external command you are running can have its
+      # work split up in this way and still produce the same resultant output
+      # when outputs of the individual commands are concatenated back together.
+      #
+      # @param initial_args [Array<String>]
+      # @param options [Hash]
+      # @option options [Array<String>] :args long list of arguments to split up
       # @return [Overcommit::Subprocess::Result] status, stdout, and stderr
-      def execute(args)
-        if args.include?('|')
+      def execute(initial_args, options = {})
+        if initial_args.include?('|')
           raise Overcommit::Exceptions::InvalidCommandArgs,
                 'Cannot pipe commands with the `execute` helper'
         end
 
-        Subprocess.spawn(args)
+        result =
+          if (splittable_args = options.fetch(:args, [])).any?
+            debug(initial_args.join(' ') + " ... (#{splittable_args.length} splittable args)")
+            Overcommit::CommandSplitter.execute(initial_args, options)
+          else
+            debug(initial_args.join(' '))
+            Overcommit::Subprocess.spawn(initial_args, options)
+          end
+
+        debug("EXIT STATUS: #{result.status}")
+        debug("STDOUT: #{result.stdout.inspect}")
+        debug("STDERR: #{result.stderr.inspect}")
+
+        result
       end
 
       # Execute a command in a subprocess, returning immediately.
@@ -166,6 +207,7 @@ module Overcommit
                 'Cannot pipe commands with the `execute_in_background` helper'
         end
 
+        debug("Spawning background task: #{args.join(' ')}")
         Subprocess.spawn_detached(args)
       end
 
@@ -210,6 +252,19 @@ module Overcommit
                       File::FNM_PATHNAME | # Wildcard doesn't match separator
                       File::FNM_DOTMATCH   # Wildcards match dotfiles
         )
+      end
+
+      private
+
+      # Log debug output.
+      #
+      # This is necessary since some specs indirectly call utility functions but
+      # don't explicitly set the logger for the Utils class, so we do a quick
+      # check here to see if it's set before we attempt to log.
+      #
+      # @param args [Array<String>]
+      def debug(*args)
+        log.debug(*args) if log
       end
     end
   end

@@ -4,13 +4,13 @@ module Overcommit::Hook::PreCommit
   # @see https://github.com/CSSLint/csslint
   class CssLint < Base
     MESSAGE_REGEX = /
-      ^(?<file>[^:]+):\s
+      ^(?<file>(?:\w:)?[^:]+):\s
       (?:line\s(?<line>\d+)[^EW]+)?
       (?<type>Error|Warning)
     /x
 
     def run
-      result = execute(command + applicable_files)
+      result = execute(command, args: applicable_files)
       output = result.stdout.chomp
       return :pass if result.success? && output.empty?
 

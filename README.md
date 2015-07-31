@@ -14,7 +14,9 @@
 
 In addition to supporting a wide variety of hooks that can be used across
 multiple repositories, you can also define hooks specific to a
-repository (but unlike regular Git hooks, are stored in source control).
+repository, but unlike regular Git hooks are stored in source control. You can
+also easily [add your existing hook scripts](#adding-existing-git-hooks) without
+writing any Ruby code.
 
 * [Requirements](#requirements)
   * [Dependencies](#dependencies)
@@ -25,6 +27,7 @@ repository (but unlike regular Git hooks, are stored in source control).
 * [Configuration](#configuration)
   * [Hooks](#hooks)
   * [Hook Categories](#hook-categories)
+  * [Gemfile](#gemfile)
   * [Plugin Directory](#plugin-directory)
   * [Signature Verification](#signature-verification)
 * [Built-In Hooks](#built-in-hooks)
@@ -37,8 +40,10 @@ repository (but unlike regular Git hooks, are stored in source control).
   * [PrePush](#prepush)
   * [PreRebase](#prerebase)
 * [Repo-Specific Hooks](#repo-specific-hooks)
+  * [Adding Existing Git Hooks](#adding-existing-git-hooks)
 * [Security](#security)
 * [Contributing](#contributing)
+* [Community](#community)
 * [Changelog](#changelog)
 * [License](#license)
 
@@ -59,6 +64,10 @@ Some of the hooks have third-party dependencies. For example, to lint your
 Depending on the hooks you enable/disable for your repository, you'll need to
 ensure your development environment already has those dependencies installed.
 Most hooks will display a warning if a required executable isn't available.
+
+If you are using Bundler to manage your Ruby gem dependencies, you'll likely
+want to use the [`gemfile`](#gemfile) option to control which gem versions are
+available during your hook runs.
 
 ## Installation
 
@@ -123,9 +132,18 @@ the name of the relevant hook in the `SKIP` environment variable, e.g.
 SKIP=RuboCop git commit
 ```
 
+If you would prefer to specify a whitelist of hooks rather than a blacklist, use
+the `ONLY` environment variable instead.
+
+```bash
+ONLY=RuboCop git commit
+```
+
 Use this feature sparingly, as there is no point to having the hook in the first
 place if you're just going to ignore it. If you want to ensure a hook is never
-skipped, set the `required` option to `true` in its configuration.
+skipped, set the `required` option to `true` in its configuration. If you
+attempt to skip it, you'll see a warning telling you that the hook is required,
+and the hook will still run.
 
 ### Disabling Overcommit
 
@@ -188,7 +206,7 @@ Option                                  | Description
 `problem_on_unmodified_line`            | How to treat errors reported on lines that weren't modified during the action captured by this hook (e.g. for pre-commit hooks, warnings/errors reported on lines that were not staged with `git add` may not be warnings/errors you care about). Valid values are `report`: report errors/warnings as-is regardless of line location (default); `warn`: report errors as warnings if they are on lines you didn't modify; and `ignore`: don't display errors/warnings at all if they are on lines you didn't modify (`ignore` is _not_ recommended).
 `on_fail`                               | Change the status of a failed hook to `warn` or `pass`. This allows you to treat failures as warnings or potentially ignore them entirely, but you should use caution when doing so as you might be hiding important information.
 `on_warn`                               | Simliar to `on_fail`, change the status of a hook that returns a warning status to either `pass` (you wish to silence warnings entirely) or `fail` (you wish to treat all warnings as errors).
-`required_executable`                   | Name of an executable that must exist in the `PATH` in order for the hook to run
+`required_executable`                   | Name of an executable that must exist in order for the hook to run. If this is a path (e.g. `./bin/ruby`), ensures that the executable file exists at the given location relative to the repository root. Otherwise, if it just the name of an executable (e.g. `ruby`) checks if the executable can be found in one of the directories in the `PATH` environment variable. Set this to a specific path if you want to always use an executable that is stored in your repository. (e.g. RubyGems bin stubs, Node.js binaries, etc.)
 `required_library`/`required_libraries` | List of Ruby libraries to load with `Kernel.require` before the hook runs. This is specifically for hooks that integrate with external Ruby libraries.
 `command`                               | Array of arguments to use as the command. How each hook uses this is different, but it allows hooks to change the context with which they run. For example, you can change the command to be `['bundle', 'exec', 'rubocop']` instead of just `rubocop` so that you can use the gem versions specified in your local `Gemfile.lock`. This defaults to the name of the `required_executable`.
 `flags`                                 | Array of arguments to append to the `command`. This is useful for customizing the behavior of a tool. It's also useful when a newer version of a tool removes/renames existing flags, so you can update the flags via your `.overcommit.yml` instead of waiting for an upstream fix in Overcommit.
@@ -238,6 +256,44 @@ hooks.
 Again, you can consult the [default configuration](config/default.yml) for
 detailed examples of how the `ALL` hook can be used.
 
+### Gemfile
+
+You may want to enforce the version of Overcommit or other gems that you use in
+your git hooks. This can be done by specifying the `gemfile` option in your
+`.overcommit.yml`.
+
+The `gemfile` option tells Overcommit to load the specified file with
+[Bundler](http://bundler.io/), the standard gem dependency manager for Ruby.
+This is useful if you would like to:
+
+  - Enforce a specific version of Overcommit to use for all hook runs
+    (or to use a version from the master branch that has not been released yet)
+  - Enforce a specific version or unreleased branch is used for a gem you want
+    to use in your git hooks
+
+Loading a Bundler context necessarily adds a startup delay to your hook runs
+as Bundler parses the specified `Gemfile` and checks that the dependencies are
+satisfied. Thus for projects with many gems this can introduce a noticeable
+delay.
+
+The recommended workaround is to create a separate `Gemfile` in the root of
+your repository (call it `.overcommit_gems.rb`), and include only the gems that
+your Overcommit hooks need in order to run. Generate the associated lock file
+by running:
+
+```bash
+bundle install --gemfile=.overcommit_gems.rb
+```
+
+...and commit `.overcommit_gems.rb` and the resulting
+`.overcommit_gems.rb.lock` file to your repository. Set your `gemfile` option
+to `.overcommit_gems.rb`, and you're all set.
+
+Using a smaller Gemfile containing only the gems used by your Overcommit hooks
+significantly reduces the startup delay in your hook runs. It is thus the
+recommended approach unless your project has a relatively small number of gems
+in your `Gemfile`.
+
 ### Plugin Directory
 
 You can change the directory that project-specific hooks are loaded from via
@@ -255,6 +311,10 @@ Currently, Overcommit supports the following hooks out of the box&mdash;simply
 enable them in your `.overcommit.yml`.
 
 **Note**: Hooks with a `*` are enabled by default.
+
+**Warning**: This list represents the list of hooks available on the `master`
+branch. Please consult the [change log](CHANGELOG.md) to view which hooks have
+not been released yet.
 
 ### CommitMsg
 
@@ -279,7 +339,10 @@ follow [proper formatting guidelines](http://tbaggery.com/2008/04/19/a-note-abou
 `post-checkout` hooks run after a successful `git checkout`, or in other words
 any time your `HEAD` changes or a file is explicitly checked out.
 
+* [BowerInstall](lib/overcommit/hook/post_checkout/bower_install.rb)
+* [BundleInstall](lib/overcommit/hook/post_checkout/bundle_install.rb)
 * [IndexTags](lib/overcommit/hook/post_checkout/index_tags.rb)
+* [NpmInstall](lib/overcommit/hook/post_checkout/npm_install.rb)
 * [SubmoduleStatus](lib/overcommit/hook/post_checkout/submodule_status.rb)
 
 ### PostCommit
@@ -288,8 +351,11 @@ any time your `HEAD` changes or a file is explicitly checked out.
 in this case does not prevent the merge since it has already occurred; however,
 it can be used to alert the user to some issue.
 
+* [BowerInstall](lib/overcommit/hook/post_commit/bower_install.rb)
+* [BundleInstall](lib/overcommit/hook/post_commit/bundle_install.rb)
 * [GitGuilt](lib/overcommit/hook/post_commit/git_guilt.rb)
 * [IndexTags](lib/overcommit/hook/post_commit/index_tags.rb)
+* [NpmInstall](lib/overcommit/hook/post_commit/npm_install.rb)
 * [SubmoduleStatus](lib/overcommit/hook/post_commit/submodule_status.rb)
 
 ### PostMerge
@@ -298,7 +364,10 @@ it can be used to alert the user to some issue.
 conflicts. A hook failing in this case does not prevent the merge since it has
 already occurred; however, it can be used to alert the user to some issue.
 
+* [BowerInstall](lib/overcommit/hook/post_merge/bower_install.rb)
+* [BundleInstall](lib/overcommit/hook/post_merge/bundle_install.rb)
 * [IndexTags](lib/overcommit/hook/post_merge/index_tags.rb)
+* [NpmInstall](lib/overcommit/hook/post_merge/npm_install.rb)
 * [SubmoduleStatus](lib/overcommit/hook/post_merge/submodule_status.rb)
 
 ### PostRewrite
@@ -308,7 +377,10 @@ or `git rebase`. A hook failing in this case does not prevent the rewrite since
 it has already occurred; however, it can be used to alert the user to some
 issue.
 
+* [BowerInstall](lib/overcommit/hook/post_rewrite/bower_install.rb)
+* [BundleInstall](lib/overcommit/hook/post_rewrite/bundle_install.rb)
 * [IndexTags](lib/overcommit/hook/post_rewrite/index_tags.rb)
+* [NpmInstall](lib/overcommit/hook/post_rewrite/npm_install.rb)
 * [SubmoduleStatus](lib/overcommit/hook/post_rewrite/submodule_status.rb)
 
 ### PreCommit
@@ -317,6 +389,21 @@ issue.
 commit message editor is displayed. If a hook fails, the commit will not be
 created. These hooks are ideal for syntax checkers, linters, and other checks
 that you want to run before you allow a commit to even be created.
+
+#### WARNING: pre-commit hooks cannot have side effects
+
+`pre-commit` hooks currently do not support hooks with side effects (such as
+modifying files and adding them to the index with `git add`). This is a
+consequence of Overcommit's pre-commit hook stashing behavior to ensure hooks
+are run against _only the changes you are about to commit_.
+
+Without Overcommit, the proper way to write a `pre-commit` hook would be to
+extract the staged changes into temporary files and lint those files
+instead of whatever contents are in your working tree (as you don't want
+unstaged changes to taint your results). Overcommit takes care
+of this for you, but to do it in a generalized way introduces this
+limitation. See the [thread tracking this
+issue](https://github.com/brigade/overcommit/issues/238) for more details.
 
 * [`*`AuthorEmail](lib/overcommit/hook/pre_commit/author_email.rb)
 * [`*`AuthorName](lib/overcommit/hook/pre_commit/author_name.rb)
@@ -333,6 +420,8 @@ that you want to run before you allow a commit to even be created.
 * [GoVet](lib/overcommit/hook/pre_commit/go_vet.rb)
 * [HamlLint](lib/overcommit/hook/pre_commit/haml_lint.rb)
 * [HardTabs](lib/overcommit/hook/pre_commit/hard_tabs.rb)
+* [Hlint](lib/overcommit/hook/pre_commit/hlint.rb)
+* [HtmlHint](lib/overcommit/hook/pre_commit/html_hint.rb)
 * [HtmlTidy](lib/overcommit/hook/pre_commit/html_tidy.rb)
 * [ImageOptim](lib/overcommit/hook/pre_commit/image_optim.rb)
 * [JavaCheckstyle](lib/overcommit/hook/pre_commit/java_checkstyle.rb)
@@ -345,6 +434,7 @@ that you want to run before you allow a commit to even be created.
 * [`*`MergeConflicts](lib/overcommit/hook/pre_commit/merge_conflicts.rb)
 * [Pep257](lib/overcommit/hook/pre_commit/pep257.rb)
 * [Pep8](lib/overcommit/hook/pre_commit/pep8.rb)
+* [PuppetLint](lib/overcommit/hook/pre_commit/puppet_lint.rb)
 * [Pyflakes](lib/overcommit/hook/pre_commit/pyflakes.rb)
 * [PythonFlake8](lib/overcommit/hook/pre_commit/python_flake8.rb)
 * [RailsSchemaUpToDate](lib/overcommit/hook/pre_commit/rails_schema_up_to_date.rb)
@@ -357,6 +447,7 @@ that you want to run before you allow a commit to even be created.
 * [SemiStandard](lib/overcommit/hook/pre_commit/semi_standard.rb)
 * [ShellCheck](lib/overcommit/hook/pre_commit/shell_check.rb)
 * [SlimLint](lib/overcommit/hook/pre_commit/slim_lint.rb)
+* [Sqlint](lib/overcommit/hook/pre_commit/sqlint.rb)
 * [Standard](lib/overcommit/hook/pre_commit/standard.rb)
 * [TrailingWhitespace](lib/overcommit/hook/pre_commit/trailing_whitespace.rb)
 * [TravisLint](lib/overcommit/hook/pre_commit/travis_lint.rb)
@@ -389,7 +480,7 @@ Out of the box, `overcommit` comes with a set of hooks that enforce a variety of
 styles and lints. However, some hooks only make sense in the context of a
 specific repository.
 
-At Brigade, for example, we have a number of ad hoc Ruby checks that we run
+At Brigade, for example, we have a number of simple checks that we run
 against our code to catch common errors. For example, since we use
 [RSpec](http://rspec.info/), we want to make sure all spec files contain the
 line `require 'spec_helper'`.
@@ -431,6 +522,26 @@ PreCommit:
 You can see a great example of writing custom Overcommit hooks from the
 following blog post: [How to Write a Custom Overcommit PreCommit
 Git Hook in 4 Steps](http://www.guoxiang.me/posts/28-how-to-write-a-custom-overcommit-precommit-git-hook-in-4-steps)
+
+### Adding Existing Git Hooks
+
+You might already have hook scripts written which you'd like to integrate with
+Overcommit right away. To make this easy, Overcommit allows you to include
+your hook script in your configuration without writing any Ruby code.
+For example:
+
+```yaml
+PostCheckout:
+  CustomScript:
+    enabled: true
+    required_executable: './bin/custom-script'
+```
+
+So long as a command is given (either by specifying the `command` option
+directly or specifying `required_executable`) a special hook is created that
+executes the command and appends any arguments and standard input stream that
+would have been passed to the regular hook. The hook passes or fails based
+on the exit status of the command.
 
 ## Security
 
@@ -474,6 +585,13 @@ While not recommended, you can disable signature verification by setting
 We love contributions to Overcommit, be they bug reports, feature ideas, or
 pull requests. See our [guidelines for contributing](CONTRIBUTING.md) to best
 ensure your thoughts, ideas, or code get merged.
+
+## Community
+
+All major discussion surrounding Overcommit happens on the
+[GitHub issues list](https://github.com/brigade/overcommit/issues).
+
+You can also follow [@git_overcommit on Twitter](https://twitter.com/git_overcommit).
 
 ## Changelog
 

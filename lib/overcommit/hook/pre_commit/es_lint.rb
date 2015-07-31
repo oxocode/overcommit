@@ -4,7 +4,7 @@ module Overcommit::Hook::PreCommit
   # @see http://eslint.org/
   class EsLint < Base
     def run
-      result = execute(command + applicable_files)
+      result = execute(command, args: applicable_files)
       output = result.stdout.chomp
       return :pass if result.success? && output.empty?
 
@@ -12,7 +12,7 @@ module Overcommit::Hook::PreCommit
       #   path/to/file.js: line 1, col 0, Error - Error message (ruleName)
       extract_messages(
         output.split("\n").grep(/Warning|Error/),
-        /^(?<file>[^:]+):[^\d]+(?<line>\d+).*?(?<type>Error|Warning)/,
+        /^(?<file>(?:\w:)?[^:]+):[^\d]+(?<line>\d+).*?(?<type>Error|Warning)/,
         lambda { |type| type.downcase.to_sym }
       )
     end

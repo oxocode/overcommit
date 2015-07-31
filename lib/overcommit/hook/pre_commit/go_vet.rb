@@ -4,7 +4,7 @@ module Overcommit::Hook::PreCommit
   # @see https://godoc.org/code.google.com/p/go-zh.tools/cmd/vet
   class GoVet < Base
     def run
-      result = execute(command + applicable_files)
+      result = execute(command, args: applicable_files)
       return :pass if result.success?
 
       if result.stderr =~ /no such tool "vet"/
@@ -15,7 +15,7 @@ module Overcommit::Hook::PreCommit
       #   path/to/file.go:7: Error message
       extract_messages(
         result.stderr.split("\n"),
-        /^(?<file>[^:]+):(?<line>\d+)/
+        /^(?<file>(?:\w:)?[^:]+):(?<line>\d+)/
       )
     end
   end

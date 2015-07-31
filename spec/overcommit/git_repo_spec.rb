@@ -1,6 +1,89 @@
 require 'spec_helper'
 
 describe Overcommit::GitRepo do
+  describe '.submodule_statuses' do
+    let(:options) { {} }
+    subject { described_class.submodule_statuses(options) }
+
+    context 'when repo contains no submodules' do
+      around do |example|
+        repo do
+          example.run
+        end
+      end
+
+      it { should be_empty }
+    end
+
+    context 'when repo contains submodules' do
+      around do |example|
+        nested_submodule = repo do
+          `git commit --allow-empty -m "Initial commit"`
+        end
+
+        submodule = repo do
+          `git submodule add #{nested_submodule} nested-sub 2>&1 > #{File::NULL}`
+          `git commit -m "Add nested submodule"`
+        end
+
+        repo do
+          `git submodule add #{submodule} sub 2>&1 > #{File::NULL}`
+          example.run
+        end
+      end
+
+      it 'returns the submodule statuses' do
+        subject.map(&:path).should == ['sub']
+      end
+
+      context 'when recursive flag is specified' do
+        let(:options) { { recursive: true } }
+
+        it 'returns submodule statuses including nested submodules' do
+          subject.map(&:path).sort.should == ['sub', 'sub/nested-sub']
+        end
+      end
+    end
+  end
+
+  describe '.extract_modified_lines' do
+    let(:file) { 'file.txt' }
+    let(:options) { {} }
+
+    subject { described_class.extract_modified_lines(file, options) }
+
+    around do |example|
+      repo do
+        echo("Hello World\nHow are you?", file)
+        `git add file.txt`
+        `git commit -m "Initial commit"`
+        example.run
+      end
+    end
+
+    context 'when no lines were modified' do
+      it { should be_empty }
+    end
+
+    context 'when lines were added' do
+      before do
+        echo('Hello Again', file, append: true)
+      end
+
+      it 'includes the added lines' do
+        subject.to_a.should == [3]
+      end
+    end
+
+    context 'when lines were removed' do
+      before do
+        echo('Hello World', file)
+      end
+
+      it { should be_empty }
+    end
+  end
+
   describe '.list_files' do
     let(:paths) { [] }
     let(:options) { {} }
@@ -44,7 +127,7 @@ describe Overcommit::GitRepo do
         let(:file) { "#{dir}/file" }
 
         before do
-          FileUtils.touch(file)
+          touch(file)
           `git add "#{file}"`
           `git commit -m "Add file"`
         end
@@ -59,6 +142,31 @@ describe Overcommit::GitRepo do
           it { should include(File.expand_path(file)) }
         end
       end
+    end
+  end
+
+  describe '.initial_commit?' do
+    subject { described_class.initial_commit? }
+
+    context 'when there are no existing commits in the repository' do
+      around do |example|
+        repo do
+          example.run
+        end
+      end
+
+      it { should == true }
+    end
+
+    context 'when there are commits in the repository' do
+      around do |example|
+        repo do
+          `git commit --allow-empty -m "Initial commit"`
+          example.run
+        end
+      end
+
+      it { should == false }
     end
   end
 

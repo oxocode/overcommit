@@ -3,7 +3,7 @@ module Overcommit::Hook::PreCommit
   #
   # @see https://pypi.python.org/pypi/flake8
   class PythonFlake8 < Base
-    MESSAGE_REGEX = /^(?<file>.+):(?<line>\d+):\d+:\s(?<type>\w\d+)/
+    MESSAGE_REGEX = /^(?<file>(?:\w:)?.+):(?<line>\d+):\d+:\s(?<type>\w\d+)/
 
     # Classify 'Exxx' and 'Fxxx' message codes as errors,
     # everything else as warnings.
@@ -13,7 +13,7 @@ module Overcommit::Hook::PreCommit
     end
 
     def run
-      result = execute(command + applicable_files)
+      result = execute(command, args: applicable_files)
       return :pass if result.success?
 
       output = result.stdout.chomp

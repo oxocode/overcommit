@@ -22,6 +22,15 @@ module Overcommit::HookContext
       @input = input
     end
 
+    # Executes a command as if it were a regular git hook, passing all
+    # command-line arguments and the standard input stream.
+    #
+    # This is intended to be used by ad hoc hooks so developers can link up
+    # their existing git hooks with Overcommit.
+    def execute_hook(command)
+      Overcommit::Utils.execute(command, args: @args, input: input_string)
+    end
+
     # Returns the camel-cased type of this hook (e.g. PreCommit)
     #
     # @return [String]
@@ -70,12 +79,45 @@ module Overcommit::HookContext
       []
     end
 
+    # Returns the contents of the entire standard input stream that were passed
+    # to the hook.
+    #
+    # @return [String]
+    def input_string
+      @input_string ||= @input.read
+    end
+
     # Returns an array of lines passed to the hook via the standard input
     # stream.
     #
     # @return [Array<String>]
     def input_lines
-      @input_lines ||= @input.read.split("\n")
+      @input_lines ||= input_string.split("\n")
+    end
+
+    private
+
+    def filter_modified_files(modified_files)
+      filter_directories(filter_nonexistent(modified_files))
+    end
+
+    # Filter out non-existent files (unless it's a broken symlink, in which case
+    # it's a file that points to a non-existent file). This could happen if a
+    # file was renamed as part of an amendment, leading to the old file no
+    # longer existing.
+    def filter_nonexistent(modified_files)
+      modified_files.select do |file|
+        File.exist?(file) || Overcommit::Utils.broken_symlink?(file)
+      end
+    end
+
+    # Filter out directories. This could happen when changing a symlink to a
+    # directory as part of an amendment, since the symlink will still appear as
+    # a file, but the actual working tree will have a directory.
+    def filter_directories(modified_files)
+      modified_files.reject do |file|
+        File.directory?(file) && !Overcommit::Utils::FileUtils.symlink?(file)
+      end
     end
   end
 end

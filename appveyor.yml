@@ -4,10 +4,6 @@ clone_depth: 1
 
 environment:
   matrix:
-    - RUBY_FOLDER_VERSION: "193"
-      RUBY_GEMS_FOLDER: "1.9.3"
-    - RUBY_FOLDER_VERSION: "193-x64"
-      RUBY_GEMS_FOLDER: "1.9.3"
     - RUBY_FOLDER_VERSION: "200"
       RUBY_GEMS_FOLDER: "2.0.0"
     - RUBY_FOLDER_VERSION: "200-x64"
@@ -46,10 +42,8 @@ install:
   - ruby --version
   - where ruby
 
-  # Install rubygems 2.3.0. Later versions cause errors when building some
-  # native extensions.
-  - gem --version
-  - gem update --system 2.3.0 --no-ri --no-rdoc
+  # Install latest version of RubyGems
+  - gem update --system --no-ri --no-rdoc
   - gem --version
   - where gem
 
@@ -72,4 +66,4 @@ before_test:
 
 test_script:
   - bundle exec rspec --tty --backtrace --color --format documentation
-  - bundle exec bin/overcommit --run
+  - bundle exec overcommit --run

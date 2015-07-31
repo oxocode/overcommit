@@ -3,7 +3,7 @@ module Overcommit::Hook::PreCommit
   #
   # @see http://www.pylint.org/
   class Pylint < Base
-    MESSAGE_REGEX = /^(?<file>.+):(?<line>\d+):(?<type>[CEFRW])/
+    MESSAGE_REGEX = /^(?<file>(?:\w:)?.+):(?<line>\d+):(?<type>[CEFRW])/
 
     # Classify 'E' and 'F' message codes as errors,
     # everything else as warnings.
@@ -13,7 +13,7 @@ module Overcommit::Hook::PreCommit
     end
 
     def run
-      result = execute(command + applicable_files)
+      result = execute(command, args: applicable_files)
       return :pass if result.success?
 
       output = result.stdout.chomp

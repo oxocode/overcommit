@@ -5,13 +5,13 @@ module Overcommit::Hook::PreCommit
   class Scalastyle < Base
     MESSAGE_REGEX = /
       ^(?<type>error|warning)\s
-      file=(?<file>.+)\s
+      file=(?<file>(?:\w:)?.+)\s
       message=.+\s
       line=(?<line>\d+)
     /x
 
     def run
-      result = execute(command + applicable_files)
+      result = execute(command, args: applicable_files)
       output = result.stdout.chomp
       messages = output.split("\n").grep(MESSAGE_REGEX)
       return :pass if result.success? && messages.empty?

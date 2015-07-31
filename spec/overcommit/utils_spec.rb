@@ -77,6 +77,28 @@ describe Overcommit::Utils do
     end
   end
 
+  describe '.strip_color_codes' do
+    subject { described_class.strip_color_codes(text) }
+
+    context 'with an empty string' do
+      let(:text) { '' }
+
+      it { should == '' }
+    end
+
+    context 'with a string with no escape sequences' do
+      let(:text) { 'A normal string' }
+
+      it { should == text }
+    end
+
+    context 'with a string with escape sequences' do
+      let(:text) { "A \e[31mcolored string\e[39m" }
+
+      it { should == 'A colored string' }
+    end
+  end
+
   describe '.snake_case' do
     it 'converts camel case to underscores' do
       described_class.snake_case('HelloWorld').should == 'hello_world'
@@ -151,16 +173,41 @@ describe Overcommit::Utils do
         expect { subject }.to raise_error Overcommit::Exceptions::InvalidCommandArgs
       end
     end
+
+    context 'when given an input stream' do
+      let(:arguments) { ['cat', '-'] }
+      let(:input) { 'Hello world' }
+
+      subject { described_class.execute(arguments, input: input) }
+
+      it 'passes the input to the standard input stream' do
+        subject.stdout.should == "Hello world\n"
+      end
+    end
+
+    context 'when given a list of arguments to execute in chunks' do
+      let(:arguments) { ['echo'] }
+      let(:splittable_args) { %w[1 2 3] }
+
+      subject { described_class.execute(arguments, args: splittable_args) }
+
+      it 'invokes CommandSplitter.execute' do
+        Overcommit::CommandSplitter.should_receive(:execute).
+                                    with(arguments, args: splittable_args).
+                                    and_return(double(status: 0, stdout: '', stderr: ''))
+        subject
+      end
+
+      it 'returns a result' do
+        subject.should be_success
+        subject.stdout.should == "1 2 3\n"
+        subject.stderr.should == ''
+      end
+    end
   end
 
   describe '.execute_in_background' do
-    let(:arguments) do
-      if Overcommit::OS.windows?
-        %w[echo null>some-file]
-      else
-        %w[touch some-file]
-      end
-    end
+    let(:arguments) { %w[touch some-file] }
 
     subject { described_class.execute_in_background(arguments) }
 

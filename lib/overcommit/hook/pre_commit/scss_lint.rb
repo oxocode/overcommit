@@ -8,7 +8,7 @@ module Overcommit::Hook::PreCommit
     end
 
     def run
-      result = execute(command + applicable_files)
+      result = execute(command, args: applicable_files)
 
       # Status code 81 indicates the applicable files were all filtered by
       # exclusions defined by the configuration. In this case, we're happy to
@@ -20,7 +20,7 @@ module Overcommit::Hook::PreCommit
 
       extract_messages(
         result.stdout.split("\n"),
-        /^(?<file>[^:]+):(?<line>\d+)[^ ]* (?<type>[^ ]+)/,
+        /^(?<file>(?:\w:)?[^:]+):(?<line>\d+)[^ ]* (?<type>[^ ]+)/,
         MESSAGE_TYPE_CATEGORIZER,
       )
     end
